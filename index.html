@@ -178,12 +178,29 @@
     }
 
     .hero-reel-frame iframe {
-      /* Over-scale to clip YouTube chrome */
+      /* Scale up to hide ALL YouTube chrome (title bar, watermark, end cards) */
       position: absolute;
-      top: -10%; left: -10%;
-      width: 120%; height: 120%;
+      top: -15%; left: -15%;
+      width: 130%; height: 130%;
       border: none; pointer-events: none;
     }
+
+    /* Mute toggle button — floats over reel */
+    .reel-mute-btn {
+      position: absolute;
+      top: 1rem; right: 1rem;
+      z-index: 4;
+      width: 36px; height: 36px;
+      background: rgba(8,8,8,.65);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(200,169,126,.35);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: background .25s, border-color .25s;
+    }
+    .reel-mute-btn:hover { background: rgba(200,169,126,.15); border-color: var(--accent); }
+    .reel-mute-btn svg { width: 16px; stroke: var(--accent); fill: none; stroke-width: 1.8; }
 
     /* Vignette on reel */
     .hero-reel-frame::after {
@@ -451,19 +468,25 @@
     <!-- RIGHT: Looping Shorts reel in portrait frame -->
     <div class="hero-right">
       <div class="hero-reel-frame">
-        <!--
-          YouTube Shorts: HylSdwVUexg
-          autoplay=1  mute=1 (required by browsers)
-          loop=1 playlist=ID (loop requires playlist param)
-          controls=0 modestbranding=1 rel=0 → hides all UI
-        -->
-        <iframe
-          id="heroReel"
-          src="https://www.youtube.com/embed/HylSdwVUexg?autoplay=1&mute=0&loop=1&playlist=HylSdwVUexg&controls=0&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1&enablejsapi=1"
-          allow="autoplay; fullscreen"
-          allowfullscreen
-          title="Aviorix Showreel"
-        ></iframe>
+        <!-- YT IFrame API placeholder — JS replaces this div -->
+        <div id="heroReel"></div>
+
+        <!-- Custom mute/unmute button -->
+        <button class="reel-mute-btn" id="muteBtn" title="Toggle sound" aria-label="Toggle mute">
+          <!-- Speaker icon (unmuted state by default) -->
+          <svg id="iconUnmuted" viewBox="0 0 24 24">
+            <polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+          </svg>
+          <!-- Muted icon (hidden by default) -->
+          <svg id="iconMuted" viewBox="0 0 24 24" style="display:none">
+            <polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/>
+            <line x1="23" y1="9" x2="17" y2="15"/>
+            <line x1="17" y1="9" x2="23" y2="15"/>
+          </svg>
+        </button>
+
         <span class="reel-tag">✦ Showreel 2026</span>
       </div>
     </div>
@@ -620,8 +643,107 @@
     <p class="f-copy">© 2026 Aviorix · Parth · All rights reserved</p>
   </footer>
 
+  <!-- YouTube IFrame API — loads async, fires onYouTubeIframeAPIReady -->
+  <script src="https://www.youtube.com/iframe_api"></script>
+
   <script>
-    /* ── Scroll reveal ── */
+    /* ══════════════════════════════════════════
+       ALWAYS START AT TOP ON PAGE LOAD/REFRESH
+    ══════════════════════════════════════════ */
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+    window.addEventListener('beforeunload', () => window.scrollTo(0, 0));
+    window.scrollTo(0, 0);
+
+    /* ══════════════════════════════════════════
+       YOUTUBE IFRAME API — HERO REEL
+       Video ID: HylSdwVUexg (Shorts)
+       Goals: autoplay, audio ON, loop, zero UI
+    ══════════════════════════════════════════ */
+    let reelPlayer = null;
+    let isMuted = false;   // we want audio ON by default
+
+    function onYouTubeIframeAPIReady() {
+      reelPlayer = new YT.Player('heroReel', {
+        videoId: 'HylSdwVUexg',
+        playerVars: {
+          autoplay:        1,
+          mute:            0,       // audio ON — user gesture unlocks this
+          loop:            1,
+          playlist:        'HylSdwVUexg',  // required for loop
+          controls:        0,       // no YouTube controls
+          modestbranding:  1,
+          rel:             0,
+          showinfo:        0,
+          iv_load_policy:  3,       // no annotations
+          disablekb:       1,
+          fs:              0,       // no fullscreen button
+          playsinline:     1,
+          cc_load_policy:  0,       // no captions
+          hl:              'en',
+        },
+        events: {
+          onReady: function(e) {
+            // Browsers block unmuted autoplay until user gesture.
+            // Strategy: start muted (guaranteed autoplay), then
+            // immediately try unmuting. If blocked, show muted state.
+            e.target.mute();
+            e.target.playVideo();
+
+            // After a tiny delay, try to unmute
+            setTimeout(() => {
+              try {
+                e.target.unMute();
+                e.target.setVolume(80);
+                isMuted = false;
+                updateMuteIcon(false);
+              } catch(err) {
+                isMuted = true;
+                updateMuteIcon(true);
+              }
+            }, 500);
+          },
+          onStateChange: function(e) {
+            // -1=unstarted, 0=ended, 1=playing, 2=paused, 3=buffering, 5=cued
+            if (e.data === YT.PlayerState.ENDED || e.data === -1) {
+              e.target.playVideo();  // manual loop fallback
+            }
+            // If video starts playing but was muted by browser, reflect that
+            if (e.data === YT.PlayerState.PLAYING) {
+              if (reelPlayer.isMuted && reelPlayer.isMuted()) {
+                isMuted = true;
+                updateMuteIcon(true);
+              }
+            }
+          },
+          onError: function(e) {
+            console.warn('Reel player error:', e.data);
+          }
+        }
+      });
+    }
+
+    /* ── Mute toggle ── */
+    function updateMuteIcon(muted) {
+      document.getElementById('iconUnmuted').style.display = muted ? 'none' : '';
+      document.getElementById('iconMuted').style.display   = muted ? '' : 'none';
+    }
+
+    document.getElementById('muteBtn').addEventListener('click', function() {
+      if (!reelPlayer) return;
+      if (isMuted) {
+        reelPlayer.unMute();
+        reelPlayer.setVolume(80);
+        isMuted = false;
+      } else {
+        reelPlayer.mute();
+        isMuted = true;
+      }
+      updateMuteIcon(isMuted);
+    });
+
+    /* ══════════════════════════════════════════
+       SCROLL REVEAL
+    ══════════════════════════════════════════ */
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(e => {
         if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); }
@@ -629,25 +751,29 @@
     }, { threshold: 0.1 });
     document.querySelectorAll('.reveal, .reveal-stagger').forEach(el => observer.observe(el));
 
-    /* ── Navbar on scroll ── */
+    /* ══════════════════════════════════════════
+       NAVBAR SCROLL STATE
+    ══════════════════════════════════════════ */
     const nav = document.getElementById('navbar');
     window.addEventListener('scroll', () => {
       nav.classList.toggle('scrolled', window.scrollY > 60);
     });
 
-    /* ── Custom cursor (desktop only) ── */
+    /* ══════════════════════════════════════════
+       CUSTOM CURSOR (desktop only)
+    ══════════════════════════════════════════ */
     if (!('ontouchstart' in window)) {
       const dot = document.createElement('div');
-      dot.style.cssText = 'position:fixed;width:7px;height:7px;background:rgba(200,169,126,.85);border-radius:50%;pointer-events:none;z-index:10000;transform:translate(-50%,-50%);transition:transform .1s ease;mix-blend-mode:difference;';
+      dot.style.cssText = 'position:fixed;width:7px;height:7px;background:rgba(200,169,126,.85);border-radius:50%;pointer-events:none;z-index:10000;transform:translate(-50%,-50%);mix-blend-mode:difference;transition:left .08s ease,top .08s ease;';
       const ring = document.createElement('div');
-      ring.style.cssText = 'position:fixed;width:30px;height:30px;border:1px solid rgba(200,169,126,.38);border-radius:50%;pointer-events:none;z-index:9998;transform:translate(-50%,-50%);transition:left .18s ease,top .18s ease,width .3s,height .3s;';
+      ring.style.cssText = 'position:fixed;width:30px;height:30px;border:1px solid rgba(200,169,126,.38);border-radius:50%;pointer-events:none;z-index:9998;transform:translate(-50%,-50%);transition:left .2s ease,top .2s ease,width .3s,height .3s;';
       document.body.append(dot, ring);
       document.addEventListener('mousemove', e => {
         dot.style.left = e.clientX + 'px'; dot.style.top = e.clientY + 'px';
         ring.style.left = e.clientX + 'px'; ring.style.top = e.clientY + 'px';
       });
-      document.querySelectorAll('a,.video-card,.cta-btn,.hero-scroll').forEach(el => {
-        el.addEventListener('mouseenter', () => { ring.style.width='52px';ring.style.height='52px';ring.style.borderColor='rgba(200,169,126,.7)'; });
+      document.querySelectorAll('a,.video-card,.cta-btn,.hero-scroll,.reel-mute-btn').forEach(el => {
+        el.addEventListener('mouseenter', () => { ring.style.width='50px';ring.style.height='50px';ring.style.borderColor='rgba(200,169,126,.7)'; });
         el.addEventListener('mouseleave', () => { ring.style.width='30px';ring.style.height='30px';ring.style.borderColor='rgba(200,169,126,.38)'; });
       });
     }
