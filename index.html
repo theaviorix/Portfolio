@@ -259,10 +259,48 @@
     .video-card:hover { border-color: rgba(200,169,126,.35); transform: translateY(-4px); }
     .video-thumb {
       position: relative; width: 100%; padding-top: 56.25%; overflow: hidden;
+      background: #111;
     }
-    .video-thumb iframe {
-      position: absolute; inset: 0; width: 100%; height: 100%;
+    .video-thumb iframe,
+    .video-thumb > div { /* IFrame API inserts an iframe inside the div */
+      position: absolute; inset: 0; width: 100% !important; height: 100% !important;
+      border: none;
+    }
+    .video-thumb > div iframe {
+      position: absolute; inset: 0; width: 100% !important; height: 100% !important;
       border: none; pointer-events: auto;
+    }
+
+    /* Tap-to-unmute overlay on hero reel */
+    .unmute-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: .6rem;
+      cursor: pointer;
+      /* invisible but clickable — tap anywhere on reel to unmute */
+      background: transparent;
+    }
+    .unmute-pill {
+      background: rgba(8,8,8,.75);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(200,169,126,.45);
+      border-radius: 30px;
+      padding: .55rem 1.2rem;
+      display: flex; align-items: center; gap: .55rem;
+      font-size: .68rem; letter-spacing: .18em; text-transform: uppercase;
+      color: var(--accent);
+      animation: pillPulse 2s ease-in-out infinite;
+      pointer-events: none;
+    }
+    .unmute-pill svg { width: 14px; stroke: var(--accent); fill: none; stroke-width: 2; }
+    @keyframes pillPulse {
+      0%,100% { opacity:.7; transform: scale(1); }
+      50% { opacity:1; transform: scale(1.04); }
     }
     .video-meta {
       padding: 1.2rem 1.4rem;
@@ -487,6 +525,14 @@
           </svg>
         </button>
 
+        <!-- Tap anywhere on reel to unmute — disappears after first tap -->
+        <div class="unmute-overlay" id="unmuteOverlay">
+          <div class="unmute-pill">
+            <svg viewBox="0 0 24 24"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+            Tap to unmute
+          </div>
+        </div>
+
         <span class="reel-tag">✦ Showreel 2026</span>
       </div>
     </div>
@@ -501,16 +547,10 @@
       </div>
       <div class="work-grid reveal-stagger">
 
-        <!-- Gaming: autoplay=1 muted — plays immediately on load -->
+        <!-- Gaming video — IFrame API controlled -->
         <div class="video-card">
           <div class="video-thumb">
-            <iframe
-              src="https://www.youtube.com/embed/F4NLi1nAK28?autoplay=1&mute=1&loop=1&playlist=F4NLi1nAK28&controls=1&modestbranding=1&rel=0&playsinline=1"
-              allow="autoplay; fullscreen"
-              allowfullscreen
-              title="Gaming Edit"
-              loading="lazy"
-            ></iframe>
+            <div id="workVideo1"></div>
           </div>
           <div class="video-meta">
             <span class="video-title">High-Impact Gaming Edit</span>
@@ -518,16 +558,10 @@
           </div>
         </div>
 
-        <!-- Finance -->
+        <!-- Finance video — IFrame API controlled -->
         <div class="video-card">
           <div class="video-thumb">
-            <iframe
-              src="https://www.youtube.com/embed/0dLAyNhWDvk?autoplay=1&mute=1&loop=1&playlist=0dLAyNhWDvk&controls=1&modestbranding=1&rel=0&playsinline=1"
-              allow="autoplay; fullscreen"
-              allowfullscreen
-              title="Finance Edit"
-              loading="lazy"
-            ></iframe>
+            <div id="workVideo2"></div>
           </div>
           <div class="video-meta">
             <span class="video-title">Finance Content Edit</span>
@@ -643,107 +677,144 @@
     <p class="f-copy">© 2026 Aviorix · Parth · All rights reserved</p>
   </footer>
 
-  <!-- YouTube IFrame API — loads async, fires onYouTubeIframeAPIReady -->
+  <!-- YouTube IFrame API -->
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    /* ══════════════════════════════════════════
-       ALWAYS START AT TOP ON PAGE LOAD/REFRESH
-    ══════════════════════════════════════════ */
+    /* ─── Always scroll to top on load/refresh ─── */
     if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
-    window.addEventListener('beforeunload', () => window.scrollTo(0, 0));
     window.scrollTo(0, 0);
 
-    /* ══════════════════════════════════════════
-       YOUTUBE IFRAME API — HERO REEL
-       Video ID: HylSdwVUexg (Shorts)
-       Goals: autoplay, audio ON, loop, zero UI
-    ══════════════════════════════════════════ */
-    let reelPlayer = null;
-    let isMuted = false;   // we want audio ON by default
+    /* ─── Players ─── */
+    let reelPlayer  = null;
+    let workPlayer1 = null;
+    let workPlayer2 = null;
+    let reelUnmuted = false;
 
+    /* Called automatically by YouTube API once script loads */
     function onYouTubeIframeAPIReady() {
+
+      /* ── HERO REEL (Shorts: 9:16, no UI, looping) ── */
       reelPlayer = new YT.Player('heroReel', {
         videoId: 'HylSdwVUexg',
+        width:  '100%',
+        height: '100%',
         playerVars: {
-          autoplay:        1,
-          mute:            0,       // audio ON — user gesture unlocks this
-          loop:            1,
-          playlist:        'HylSdwVUexg',  // required for loop
-          controls:        0,       // no YouTube controls
-          modestbranding:  1,
-          rel:             0,
-          showinfo:        0,
-          iv_load_policy:  3,       // no annotations
-          disablekb:       1,
-          fs:              0,       // no fullscreen button
-          playsinline:     1,
-          cc_load_policy:  0,       // no captions
-          hl:              'en',
+          autoplay:       1,
+          mute:           1,      // start muted — browser requires this for autoplay
+          loop:           1,
+          playlist:       'HylSdwVUexg',
+          controls:       0,
+          modestbranding: 1,
+          rel:            0,
+          showinfo:       0,
+          iv_load_policy: 3,
+          disablekb:      1,
+          fs:             0,
+          playsinline:    1,
+          cc_load_policy: 0,
+          start:          0,      // always from beginning
         },
         events: {
           onReady: function(e) {
-            // Browsers block unmuted autoplay until user gesture.
-            // Strategy: start muted (guaranteed autoplay), then
-            // immediately try unmuting. If blocked, show muted state.
-            e.target.mute();
+            e.target.seekTo(0);   // force start from 0:00
             e.target.playVideo();
-
-            // After a tiny delay, try to unmute
-            setTimeout(() => {
-              try {
-                e.target.unMute();
-                e.target.setVolume(80);
-                isMuted = false;
-                updateMuteIcon(false);
-              } catch(err) {
-                isMuted = true;
-                updateMuteIcon(true);
-              }
-            }, 500);
           },
           onStateChange: function(e) {
-            // -1=unstarted, 0=ended, 1=playing, 2=paused, 3=buffering, 5=cued
+            /* Keep looping — if ended or unstarted, restart */
             if (e.data === YT.PlayerState.ENDED || e.data === -1) {
-              e.target.playVideo();  // manual loop fallback
+              e.target.seekTo(0);
+              e.target.playVideo();
             }
-            // If video starts playing but was muted by browser, reflect that
-            if (e.data === YT.PlayerState.PLAYING) {
-              if (reelPlayer.isMuted && reelPlayer.isMuted()) {
-                isMuted = true;
-                updateMuteIcon(true);
-              }
-            }
-          },
-          onError: function(e) {
-            console.warn('Reel player error:', e.data);
+          }
+        }
+      });
+
+      /* ── WORK VIDEO 1 — Gaming (with controls, muted autoplay) ── */
+      workPlayer1 = new YT.Player('workVideo1', {
+        videoId: 'F4NLi1nAK28',
+        width:  '100%',
+        height: '100%',
+        playerVars: {
+          autoplay:       1,
+          mute:           1,
+          loop:           1,
+          playlist:       'F4NLi1nAK28',
+          controls:       1,
+          modestbranding: 1,
+          rel:            0,
+          playsinline:    1,
+          start:          0,
+        },
+        events: {
+          onReady: function(e) { e.target.seekTo(0); e.target.playVideo(); },
+          onStateChange: function(e) {
+            if (e.data === YT.PlayerState.ENDED) { e.target.seekTo(0); e.target.playVideo(); }
+          }
+        }
+      });
+
+      /* ── WORK VIDEO 2 — Finance ── */
+      workPlayer2 = new YT.Player('workVideo2', {
+        videoId: '0dLAyNhWDvk',
+        width:  '100%',
+        height: '100%',
+        playerVars: {
+          autoplay:       1,
+          mute:           1,
+          loop:           1,
+          playlist:       '0dLAyNhWDvk',
+          controls:       1,
+          modestbranding: 1,
+          rel:            0,
+          playsinline:    1,
+          start:          0,
+        },
+        events: {
+          onReady: function(e) { e.target.seekTo(0); e.target.playVideo(); },
+          onStateChange: function(e) {
+            if (e.data === YT.PlayerState.ENDED) { e.target.seekTo(0); e.target.playVideo(); }
           }
         }
       });
     }
 
-    /* ── Mute toggle ── */
-    function updateMuteIcon(muted) {
-      document.getElementById('iconUnmuted').style.display = muted ? 'none' : '';
-      document.getElementById('iconMuted').style.display   = muted ? '' : 'none';
-    }
-
-    document.getElementById('muteBtn').addEventListener('click', function() {
+    /* ─── Unmute overlay: tap anywhere on reel ─── */
+    document.getElementById('unmuteOverlay').addEventListener('click', function() {
       if (!reelPlayer) return;
-      if (isMuted) {
-        reelPlayer.unMute();
-        reelPlayer.setVolume(80);
-        isMuted = false;
-      } else {
-        reelPlayer.mute();
-        isMuted = true;
-      }
-      updateMuteIcon(isMuted);
+      reelPlayer.unMute();
+      reelPlayer.setVolume(85);
+      reelUnmuted = true;
+      /* Hide overlay */
+      this.style.display = 'none';
+      /* Update mute button icon */
+      document.getElementById('iconUnmuted').style.display = '';
+      document.getElementById('iconMuted').style.display   = 'none';
     });
 
-    /* ══════════════════════════════════════════
-       SCROLL REVEAL
-    ══════════════════════════════════════════ */
+    /* ─── Mute button (top-right corner of reel) ─── */
+    let muteButtonMuted = false; // track state separately from overlay
+    document.getElementById('muteBtn').addEventListener('click', function(e) {
+      e.stopPropagation(); // don't trigger overlay click
+      if (!reelPlayer) return;
+      if (!reelUnmuted || muteButtonMuted) {
+        // Either first click (unmute) or re-unmuting
+        reelPlayer.unMute();
+        reelPlayer.setVolume(85);
+        reelUnmuted = true;
+        muteButtonMuted = false;
+        document.getElementById('unmuteOverlay').style.display = 'none';
+        document.getElementById('iconUnmuted').style.display = '';
+        document.getElementById('iconMuted').style.display   = 'none';
+      } else {
+        reelPlayer.mute();
+        muteButtonMuted = true;
+        document.getElementById('iconUnmuted').style.display = 'none';
+        document.getElementById('iconMuted').style.display   = '';
+      }
+    });
+
+    /* ─── Scroll reveal ─── */
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(e => {
         if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); }
@@ -751,17 +822,13 @@
     }, { threshold: 0.1 });
     document.querySelectorAll('.reveal, .reveal-stagger').forEach(el => observer.observe(el));
 
-    /* ══════════════════════════════════════════
-       NAVBAR SCROLL STATE
-    ══════════════════════════════════════════ */
+    /* ─── Navbar scroll state ─── */
     const nav = document.getElementById('navbar');
     window.addEventListener('scroll', () => {
       nav.classList.toggle('scrolled', window.scrollY > 60);
     });
 
-    /* ══════════════════════════════════════════
-       CUSTOM CURSOR (desktop only)
-    ══════════════════════════════════════════ */
+    /* ─── Custom cursor (desktop only) ─── */
     if (!('ontouchstart' in window)) {
       const dot = document.createElement('div');
       dot.style.cssText = 'position:fixed;width:7px;height:7px;background:rgba(200,169,126,.85);border-radius:50%;pointer-events:none;z-index:10000;transform:translate(-50%,-50%);mix-blend-mode:difference;transition:left .08s ease,top .08s ease;';
@@ -772,7 +839,7 @@
         dot.style.left = e.clientX + 'px'; dot.style.top = e.clientY + 'px';
         ring.style.left = e.clientX + 'px'; ring.style.top = e.clientY + 'px';
       });
-      document.querySelectorAll('a,.video-card,.cta-btn,.hero-scroll,.reel-mute-btn').forEach(el => {
+      document.querySelectorAll('a,.video-card,.cta-btn,.hero-scroll,.reel-mute-btn,.unmute-overlay').forEach(el => {
         el.addEventListener('mouseenter', () => { ring.style.width='50px';ring.style.height='50px';ring.style.borderColor='rgba(200,169,126,.7)'; });
         el.addEventListener('mouseleave', () => { ring.style.width='30px';ring.style.height='30px';ring.style.borderColor='rgba(200,169,126,.38)'; });
       });
