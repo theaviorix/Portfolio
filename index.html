@@ -753,7 +753,7 @@
         width:  '100%',
         height: '100%',
         playerVars: {
-          autoplay:       1,
+          autoplay:       0,    // wait for scroll
           mute:           1,
           loop:           1,
           playlist:       'F4NLi1nAK28',
@@ -764,7 +764,12 @@
           start:          0,
         },
         events: {
-          onReady: function(e) { e.target.seekTo(0); e.target.playVideo(); },
+          onReady: function(e) {
+            e.target.seekTo(0);
+            workPlayer1Ready = true;
+            // If already in view when ready, play immediately
+            if (workVideo1InView) e.target.playVideo();
+          },
           onStateChange: function(e) {
             if (e.data === YT.PlayerState.ENDED) { e.target.seekTo(0); e.target.playVideo(); }
           }
@@ -777,7 +782,7 @@
         width:  '100%',
         height: '100%',
         playerVars: {
-          autoplay:       1,
+          autoplay:       0,    // wait for scroll
           mute:           1,
           loop:           1,
           playlist:       '0dLAyNhWDvk',
@@ -788,7 +793,11 @@
           start:          0,
         },
         events: {
-          onReady: function(e) { e.target.seekTo(0); e.target.playVideo(); },
+          onReady: function(e) {
+            e.target.seekTo(0);
+            workPlayer2Ready = true;
+            if (workVideo2InView) e.target.playVideo();
+          },
           onStateChange: function(e) {
             if (e.data === YT.PlayerState.ENDED) { e.target.seekTo(0); e.target.playVideo(); }
           }
@@ -830,6 +839,34 @@
         document.getElementById('iconMuted').style.display   = '';
       }
     });
+
+    /* ─── Work video scroll-trigger ─── */
+    let workPlayer1Ready = false, workPlayer2Ready = false;
+    let workVideo1InView = false, workVideo2InView = false;
+
+    const videoObserver = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        const id = e.target.id;
+        const inView = e.isIntersecting;
+
+        if (id === 'workVideo1') {
+          workVideo1InView = inView;
+          if (inView && workPlayer1Ready) workPlayer1.playVideo();
+          else if (!inView && workPlayer1Ready) workPlayer1.pauseVideo();
+        }
+        if (id === 'workVideo2') {
+          workVideo2InView = inView;
+          if (inView && workPlayer2Ready) workPlayer2.playVideo();
+          else if (!inView && workPlayer2Ready) workPlayer2.pauseVideo();
+        }
+      });
+    }, { threshold: 0.4 }); // play when 40% of video is visible
+
+    // Observe the API placeholder divs
+    const v1el = document.getElementById('workVideo1');
+    const v2el = document.getElementById('workVideo2');
+    if (v1el) videoObserver.observe(v1el);
+    if (v2el) videoObserver.observe(v2el);
 
     /* ─── Scroll reveal ─── */
     const observer = new IntersectionObserver((entries) => {
