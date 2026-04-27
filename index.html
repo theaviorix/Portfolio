@@ -159,16 +159,20 @@
       height: 100svh;
       overflow: hidden;
       display: flex; align-items: center; justify-content: center;
+      padding: 1.5rem 2rem;
     }
 
     /* Portrait-style frame — Shorts aspect ratio */
     .hero-reel-frame {
       position: relative;
-      width: min(340px, 90%);
+      /* Size by height so it fills the viewport vertically */
+      height: calc(100svh - 3rem);
+      width: calc((100svh - 3rem) * 9 / 16);  /* maintain 9:16 */
+      max-width: 100%;
       aspect-ratio: 9/16;
-      border-radius: 16px;
+      border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 32px 80px rgba(0,0,0,.7), 0 0 0 1px rgba(200,169,126,.12);
+      box-shadow: 0 24px 80px rgba(0,0,0,.85), 0 0 0 1px rgba(200,169,126,.18);
       opacity: 0;
       transform: translateY(20px) scale(.97);
       animation: reelReveal 1s var(--ease) .8s forwards;
@@ -177,12 +181,22 @@
       to { opacity:1; transform: translateY(0) scale(1); }
     }
 
+    /* The API injects an iframe inside #heroReel div */
+    .hero-reel-frame > div {
+      position: absolute !important;
+      top: 0 !important; left: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+    }
+    /* iframe inside the API div — fill perfectly */
+    .hero-reel-frame > div > iframe,
     .hero-reel-frame iframe {
-      /* Scale up to hide ALL YouTube chrome (title bar, watermark, end cards) */
-      position: absolute;
-      top: -15%; left: -15%;
-      width: 130%; height: 130%;
-      border: none; pointer-events: none;
+      position: absolute !important;
+      top: 0 !important; left: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      border: none !important;
+      pointer-events: none;
     }
 
     /* Mute toggle button — floats over reel */
@@ -202,24 +216,26 @@
     .reel-mute-btn:hover { background: rgba(200,169,126,.15); border-color: var(--accent); }
     .reel-mute-btn svg { width: 16px; stroke: var(--accent); fill: none; stroke-width: 1.8; }
 
-    /* Vignette on reel */
+    /* Vignette on reel — clip-path keeps it within rounded corners */
     .hero-reel-frame::after {
       content: '';
       position: absolute; inset: 0;
       background: linear-gradient(to bottom,
-        rgba(8,8,8,.3) 0%,
-        transparent 30%,
-        transparent 70%,
-        rgba(8,8,8,.4) 100%);
+        rgba(8,8,8,.25) 0%,
+        transparent 25%,
+        transparent 75%,
+        rgba(8,8,8,.35) 100%);
       pointer-events: none;
-      border-radius: 16px;
+      border-radius: 12px;
+      clip-path: inset(0 round 12px);
+      z-index: 2;
     }
 
     /* Floating tag on reel */
     .reel-tag {
       position: absolute;
       bottom: 1.5rem; left: 50%; transform: translateX(-50%);
-      z-index: 3;
+      z-index: 5;
       background: rgba(8,8,8,.7);
       backdrop-filter: blur(8px);
       border: 1px solid rgba(200,169,126,.3);
@@ -455,8 +471,8 @@
     @media (max-width: 900px) {
       #hero { grid-template-columns: 1fr; min-height: auto; }
       .hero-left { padding: 8rem 2rem 3rem; order: 1; text-align: left; }
-      .hero-right { order: 2; height: auto; padding: 1.5rem 2rem 5rem; }
-      .hero-reel-frame { width: min(280px, 80%); margin: 0 auto; }
+      .hero-right { order: 2; height: 70svh; padding: 1rem 2rem 3rem; }
+      .hero-reel-frame { height: calc(70svh - 2rem); width: calc((70svh - 2rem) * 9 / 16); max-width: 88vw; margin: 0 auto; }
       .about-inner { grid-template-columns: 1fr; gap: 3rem; }
     }
     @media (max-width: 600px) {
@@ -465,7 +481,7 @@
       section { padding: 5rem 1.5rem; }
       .hero-left { padding: 7rem 1.5rem 2.5rem; }
       .hero-right { padding: 1rem 1.5rem 4rem; }
-      .hero-reel-frame { width: min(240px, 75%); }
+      .hero-reel-frame { height: calc(65svh - 2rem); width: calc((65svh - 2rem) * 9 / 16); max-width: 82vw; }
       .about-stats { grid-template-columns: 1fr 1fr; }
       footer { flex-direction: column; text-align: center; }
       .contact-details { flex-direction: column; align-items: center; }
@@ -717,7 +733,8 @@
         },
         events: {
           onReady: function(e) {
-            e.target.seekTo(0);   // force start from 0:00
+            e.target.seekTo(0);           // force start from 0:00
+            e.target.setPlaybackQuality('hd1080');  // request 1080p
             e.target.playVideo();
           },
           onStateChange: function(e) {
